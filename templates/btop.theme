@@ -1,0 +1,56 @@
+# ruxtheme btop theme - ${ct_label}
+# Rendered from ~/.config/ruxtheme/templates/btop.theme by `ruxtheme set`.
+
+theme[main_bg]="${ct_base}"
+theme[main_fg]="${ct_text}"
+theme[title]="${ct_text}"
+theme[hi_fg]="${ct_accent}"
+theme[selected_bg]="${ct_surface1}"
+theme[selected_fg]="${ct_accent}"
+theme[inactive_fg]="${ct_overlay0}"
+theme[graph_text]="${ct_subtext0}"
+theme[meter_bg]="${ct_surface1}"
+theme[proc_misc]="${ct_teal}"
+
+theme[cpu_box]="${ct_accent}"
+theme[mem_box]="${ct_green}"
+theme[net_box]="${ct_red}"
+theme[proc_box]="${ct_sky}"
+theme[div_line]="${ct_surface1}"
+
+# temperature: green -> yellow -> red
+theme[temp_start]="${ct_green}"
+theme[temp_mid]="${ct_yellow}"
+theme[temp_end]="${ct_red}"
+
+# cpu load: accent -> yellow -> red
+theme[cpu_start]="${ct_accent}"
+theme[cpu_mid]="${ct_yellow}"
+theme[cpu_end]="${ct_red}"
+
+# free / cached / available / used memory ramps
+theme[free_start]="${ct_green}"
+theme[free_mid]="${ct_teal}"
+theme[free_end]="${ct_sky}"
+theme[cached_start]="${ct_sky}"
+theme[cached_mid]="${ct_sapphire}"
+theme[cached_end]="${ct_blue}"
+theme[available_start]="${ct_yellow}"
+theme[available_mid]="${ct_peach}"
+theme[available_end]="${ct_maroon}"
+theme[used_start]="${ct_lavender}"
+theme[used_mid]="${ct_accent}"
+theme[used_end]="${ct_red}"
+
+# network
+theme[download_start]="${ct_green}"
+theme[download_mid]="${ct_teal}"
+theme[download_end]="${ct_sky}"
+theme[upload_start]="${ct_lavender}"
+theme[upload_mid]="${ct_accent}"
+theme[upload_end]="${ct_pink}"
+
+# process gradient
+theme[process_start]="${ct_green}"
+theme[process_mid]="${ct_yellow}"
+theme[process_end]="${ct_red}"

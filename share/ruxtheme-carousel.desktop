@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Theme Carousel
+GenericName=Desktop theme switcher
+Comment=Swipe through ruxchipher desktop themes and apply one
+Exec=sh -c 'exec "$HOME/.local/bin/ruxtheme-carousel"'
+Icon=preferences-desktop-theme
+Terminal=false
+Categories=Settings;DesktopSettings;GTK;
+Keywords=theme;colour;color;catppuccin;wallpaper;rice;
+StartupNotify=true
+StartupWMClass=com.ruxchipher.ThemeCarousel

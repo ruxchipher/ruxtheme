@@ -1,0 +1,15 @@
+font=JetBrainsMono Nerd Font 10
+background-color=${ct_base}e6
+text-color=${ct_text}
+border-color=${ct_accent}
+progress-color=over ${ct_surface2}
+border-size=2
+border-radius=10
+padding=12
+margin=12
+width=360
+default-timeout=5000
+
+[urgency=high]
+border-color=${ct_red}
+default-timeout=0

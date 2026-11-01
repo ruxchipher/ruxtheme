@@ -1,0 +1,58 @@
+/* ${ct_label} */
+@define-color base     ${ct_base};
+@define-color surface0 ${ct_surface0};
+@define-color surface1 ${ct_surface1};
+@define-color text     ${ct_text};
+@define-color mauve    ${ct_accent};
+@define-color blue     ${ct_sky};
+@define-color green    ${ct_green};
+@define-color yellow   ${ct_yellow};
+@define-color peach    ${ct_peach};
+@define-color red      ${ct_red};
+@define-color teal     ${ct_teal};
+
+* {
+    font-family: "JetBrainsMono Nerd Font";
+    font-size: 13px;
+    border: none;
+    min-height: 0;
+}
+
+window#waybar {
+    background: alpha(@base, 0.8);
+    border: 2px solid alpha(@mauve, 0.6);
+    border-radius: 12px;
+    color: @text;
+}
+
+#custom-arch {
+    color: @blue;
+    font-size: 18px;
+    padding: 0 12px 0 14px;
+}
+
+#workspaces button {
+    color: @surface1;
+    padding: 0 6px;
+    border-radius: 8px;
+}
+#workspaces button.active { color: @mauve; background: @surface0; }
+#workspaces button:hover  { color: @text; background: @surface0; }
+
+#window { color: @text; padding-left: 8px; }
+window#waybar.empty #window { background: transparent; }
+
+#clock { color: @blue; font-weight: bold; }
+
+#tray, #pulseaudio, #backlight, #network, #cpu, #memory, #battery, #custom-power {
+    padding: 0 8px;
+}
+#pulseaudio { color: @mauve; }
+#backlight  { color: @yellow; }
+#network    { color: @teal; }
+#cpu        { color: @blue; }
+#memory     { color: @green; }
+#battery    { color: @green; }
+#battery.warning  { color: @peach; }
+#battery.critical { color: @red; }
+#custom-power { color: @red; padding-right: 14px; }

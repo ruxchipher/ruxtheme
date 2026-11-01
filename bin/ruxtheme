@@ -1,0 +1,262 @@
+#!/usr/bin/env bash
+# ruxtheme - switch the whole ruxchipher desktop between colour themes.
+#
+# One palette file is the source of truth. Every themed config lives as a
+# ${ct_*} template; `set` renders them all with envsubst, writes them to their
+# real paths, then live-reloads whatever is running.
+#
+# Usage:
+#   ruxtheme list                 show themes, * marks the active one
+#   ruxtheme current              print the active theme name
+#   ruxtheme set <name>           apply a theme
+#   ruxtheme next | prev          cycle through themes (used by the carousel)
+#   ruxtheme toggle               flip dark <-> light (mocha <-> latte)
+#   ruxtheme show <name>          print a palette as colour swatches
+#   ruxtheme wallpaper <name> [img]  set/rebuild a theme's wallpaper from ~/Pictures/Wallpapers/sources
+#
+# Themes live in ~/.config/ruxtheme/palettes/*.env
+# Originals of every file this touches are kept in ~/.config/ruxtheme/backup/
+set -uo pipefail
+
+ROOT="$HOME/.config/ruxtheme"
+PAL="$ROOT/palettes"; TPL="$ROOT/templates"; CUR="$ROOT/current"
+VENV="$HOME/.local/share/ruxtheme/venv"
+WALLGEN="$HOME/.local/share/ruxtheme/wallpaper.py"
+WALLPHOTO="$HOME/.local/share/ruxtheme/make-wallpaper.py"
+WALLSRC="$HOME/Pictures/Wallpapers/sources"
+WALLMAP="$ROOT/wallpapers.map"
+PREVIEWS="$HOME/.local/share/ruxtheme/previews"
+CONKYDIR="$HOME/.config/conky/ruxchipher"
+
+die() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+info() { printf '  \033[2m%s\033[0m\n' "$*"; }
+
+[ -d "$PAL" ] || die "no palettes at $PAL"
+
+themes() { for f in "$PAL"/*.env; do [ -e "$f" ] || continue; basename "$f" .env; done; }
+
+# themes sorted by the ct_order field, so cycling follows dark -> light
+themes_ordered() {
+  for t in $(themes); do printf '%s %s\n' "$(sed -n 's/^ct_order=//p' "$PAL/$t.env")" "$t"; done \
+    | sort -n | awk '{print $2}'
+}
+
+current() { [ -f "$CUR" ] && cat "$CUR" || echo "tokyo-night"; }
+
+# template -> destination
+dest_for() {
+  case "$1" in
+    conky-common.lua)  echo "$CONKYDIR/common.lua" ;;
+    conky-hud.lua)     echo "$CONKYDIR/hud.lua" ;;
+    conky-lab.lua)     echo "$CONKYDIR/lab.lua" ;;
+    kitty-theme.conf)  echo "$HOME/.config/kitty/current-theme.conf" ;;
+    rofi-config.rasi)  echo "$HOME/.config/rofi/config.rasi" ;;
+    mako-config)       echo "$HOME/.config/mako/config" ;;
+    waybar-style.css)  echo "$HOME/.config/waybar/style.css" ;;
+    hyprlock.conf)     echo "$HOME/.config/hypr/hyprlock.conf" ;;
+    gtk3.css)          echo "$HOME/.config/gtk-3.0/gtk.css" ;;
+    gtk4.css)          echo "$HOME/.config/gtk-4.0/gtk.css" ;;
+    gnome-shell.css)   echo "$HOME/.themes/ruxchipher/gnome-shell/gnome-shell.css" ;;
+    config.fish)       echo "$HOME/.config/fish/config.fish" ;;
+    fastfetch.jsonc)   echo "$HOME/.config/fastfetch/config.jsonc" ;;
+    startpage.html)    echo "$HOME/.local/share/ruxchipher/startpage/index.html" ;;
+    starship.toml)     echo "$HOME/.config/starship.toml" ;;
+    btop.theme)        echo "$HOME/.config/btop/themes/ruxtheme.theme" ;;
+    *) return 1 ;;
+  esac
+}
+
+cmd_list() {
+  local c; c="$(current)"
+  for t in $(themes_ordered); do
+    # shellcheck disable=SC1090
+    local label accent; label="$(sed -n "s/^ct_label='\(.*\)'$/\1/p" "$PAL/$t.env")"
+    accent="$(sed -n "s/^ct_accent='\(.*\)'$/\1/p" "$PAL/$t.env")"
+    local r g b; r=$((16#${accent:1:2})); g=$((16#${accent:3:2})); b=$((16#${accent:5:2}))
+    if [ "$t" = "$c" ]; then printf '  \033[1m* %-22s\033[0m' "$t"; else printf '    %-22s' "$t"; fi
+    printf '\033[38;2;%d;%d;%dm██\033[0m  %s\n' "$r" "$g" "$b" "$label"
+  done
+}
+
+cmd_show() {
+  local t="${1:-$(current)}"; [ -f "$PAL/$t.env" ] || die "no such theme: $t"
+  local keys="base mantle crust surface0 surface1 surface2 overlay0 overlay1 subtext0 text accent mauve lavender blue sky teal green yellow peach red"
+  printf '\n  %s\n\n' "$(sed -n "s/^ct_label='\(.*\)'$/\1/p" "$PAL/$t.env")"
+  for k in $keys; do
+    local v; v="$(sed -n "s/^ct_${k}='\(.*\)'$/\1/p" "$PAL/$t.env")"
+    [ -n "$v" ] || continue
+    local r g b; r=$((16#${v:1:2})); g=$((16#${v:3:2})); b=$((16#${v:5:2}))
+    printf '  \033[48;2;%d;%d;%dm      \033[0m  %-10s %s\n' "$r" "$g" "$b" "$k" "$v"
+  done; echo
+}
+
+# Which source photo each theme uses. "generated" means the procedural contour art.
+wall_source() {
+  [ -f "$WALLMAP" ] || { echo generated; return; }
+  local s; s="$(awk -v t="$1" '$1==t {print $2; exit}' "$WALLMAP")"
+  [ -n "$s" ] && echo "$s" || echo generated
+}
+
+ensure_wallpaper() {
+  local name="$1" out="$2" force="${3:-}"
+  [ -n "$force" ] || { [ -f "$out" ] && return 0; }
+  [ -x "$VENV/bin/python" ] || { info "no wallpaper venv, skipping wallpaper"; return 1; }
+  local src; src="$(wall_source "$name")"
+  if [ "$src" = generated ]; then
+    [ -f "$WALLGEN" ] || { info "no wallpaper generator, skipping"; return 1; }
+    info "rendering generated wallpaper for $name"
+    "$VENV/bin/python" "$WALLGEN" "$name" "$out" >/dev/null 2>&1 \
+      || { info "wallpaper render failed"; return 1; }
+  else
+    local img="$WALLSRC/$src"
+    [ -f "$img" ] || { info "missing source image: $img"; return 1; }
+    [ -f "$WALLPHOTO" ] || { info "no photo pipeline, skipping"; return 1; }
+    info "building wallpaper for $name from $src"
+    "$VENV/bin/python" "$WALLPHOTO" "$name" "$img" "$out" >/dev/null 2>&1 \
+      || { info "wallpaper build failed"; return 1; }
+  fi
+  # refresh the carousel thumbnail so the picker never shows a stale image
+  "$VENV/bin/python" - "$out" "$PREVIEWS/$name.png" <<'PY' >/dev/null 2>&1 || true
+import sys, os
+from PIL import Image
+os.makedirs(os.path.dirname(sys.argv[2]), exist_ok=True)
+Image.open(sys.argv[1]).resize((640, 360), Image.LANCZOS).save(sys.argv[2], optimize=True)
+PY
+}
+
+cmd_wallpaper() {
+  local name="${1:-}" img="${2:-}"
+  [ -n "$name" ] || die "usage: ruxtheme wallpaper <theme> <image-in-sources|generated>"
+  [ -f "$PAL/$name.env" ] || die "no such theme: $name"
+  if [ -n "$img" ]; then
+    [ "$img" = generated ] || [ -f "$WALLSRC/$img" ] \
+      || die "not in $WALLSRC: $img   (available: $(ls "$WALLSRC" 2>/dev/null | tr '\n' ' '))"
+    local tmp; tmp="$(mktemp)"
+    awk -v t="$name" -v s="$img" 'BEGIN{done=0} $1==t {print t"\t"s; done=1; next} {print} END{if(!done) print t"\t"s}' \
+      "$WALLMAP" > "$tmp" && mv "$tmp" "$WALLMAP"
+    info "$name -> $img"
+  fi
+  set -a; . "$PAL/$name.env"; set +a
+  ensure_wallpaper "$name" "$ct_wallpaper" force || die "could not build wallpaper"
+  if [ "$name" = "$(current)" ]; then
+    gsettings set org.gnome.desktop.background picture-uri "file://$ct_wallpaper" 2>/dev/null
+    gsettings set org.gnome.desktop.background picture-uri-dark "file://$ct_wallpaper" 2>/dev/null
+    info "applied to the live desktop"
+  fi
+  printf '  \033[32mdone\033[0m  %s\n' "$ct_wallpaper"
+}
+
+cmd_set() {
+  local name="${1:-}"; [ -n "$name" ] || die "usage: ruxtheme set <name>"
+  local env="$PAL/$name.env"; [ -f "$env" ] || die "no such theme: $name (try: ruxtheme list)"
+
+  # every ct_* name in this palette, as a '$a $b' list so envsubst touches nothing else.
+  # this is what keeps conky's ${cpu} and starship's $directory intact.
+  local vars; vars="$(grep -oE '^ct_[a-z0-9_]+' "$env" | sed 's/^/$/' | tr '\n' ' ')"
+
+  set -a; . "$env"; set +a
+
+  printf '\n  \033[1m%s\033[0m  accent %s %s\n\n' "$ct_label" "$ct_accent_name" "$ct_accent"
+
+  ensure_wallpaper "$name" "$ct_wallpaper" || true
+
+  local n=0
+  for tpl in "$TPL"/*; do
+    [ -e "$tpl" ] || continue
+    local base dst; base="$(basename "$tpl")"
+    dst="$(dest_for "$base")" || { info "no destination for $base, skipped"; continue; }
+    mkdir -p "$(dirname "$dst")"
+    local tmp; tmp="$(mktemp)"
+    if envsubst "$vars" < "$tpl" > "$tmp"; then
+      if ! cmp -s "$tmp" "$dst"; then mv "$tmp" "$dst"; else rm -f "$tmp"; fi
+      n=$((n+1))
+    else
+      rm -f "$tmp"; info "render failed: $base"
+    fi
+  done
+  info "rendered $n config files"
+
+  echo "$name" > "$CUR"
+  apply_gnome "$name"
+  reload_apps
+  printf '\n  \033[32mdone\033[0m  %s is live\n\n' "$ct_label"
+}
+
+apply_gnome() {
+  command -v gsettings >/dev/null || return 0
+  local icons="$ct_icons"
+  [ -d "$HOME/.local/share/icons/$ct_icons_rux" ] && icons="$ct_icons_rux"
+  gsettings set org.gnome.desktop.interface color-scheme "$ct_gtk_scheme" 2>/dev/null
+  gsettings set org.gnome.desktop.interface gtk-theme "$ct_gtk_theme" 2>/dev/null
+  gsettings set org.gnome.desktop.interface icon-theme "$icons" 2>/dev/null
+  if [ -f "$ct_wallpaper" ]; then
+    gsettings set org.gnome.desktop.background picture-uri "file://$ct_wallpaper" 2>/dev/null
+    gsettings set org.gnome.desktop.background picture-uri-dark "file://$ct_wallpaper" 2>/dev/null
+    gsettings set org.gnome.desktop.screensaver picture-uri "file://$ct_wallpaper" 2>/dev/null
+  fi
+  # btop reads a theme name from its own config
+  local bc="$HOME/.config/btop/btop.conf"
+  if [ -f "$bc" ]; then
+    sed -i 's|^color_theme = .*|color_theme = "ruxtheme"|' "$bc"
+    sed -i "s|^theme_background = .*|theme_background = False|" "$bc"
+  fi
+  # nudge the user-theme extension so the shell picks up the new CSS
+  if gsettings list-schemas 2>/dev/null | grep -q user-theme; then
+    gsettings set org.gnome.shell.extensions.user-theme name '' 2>/dev/null
+    sleep 0.4
+    gsettings set org.gnome.shell.extensions.user-theme name 'ruxchipher' 2>/dev/null
+  fi
+}
+
+reload_apps() {
+  pkill -USR1 -x kitty 2>/dev/null && info "kitty reloaded"
+  if pgrep -x mako >/dev/null 2>&1; then makoctl reload 2>/dev/null && info "mako reloaded"; fi
+  if pgrep -x waybar >/dev/null 2>&1; then pkill -USR2 -x waybar 2>/dev/null && info "waybar reloaded"; fi
+  if pgrep -x conky >/dev/null 2>&1; then
+    pkill -x conky 2>/dev/null; sleep 0.6
+    # setsid --fork fully detaches, and all three fds are redirected. Without this the
+    # backgrounded subshell keeps ruxtheme's stdout open and `ruxtheme set ... | grep`
+    # never terminates.
+    for w in conky lab left media; do
+      [ -f "$CONKYDIR/$w.conf" ] || continue
+      setsid --fork conky -c "$CONKYDIR/$w.conf" </dev/null >/dev/null 2>&1
+    done
+    sleep 1
+    if [ -f "$CONKYDIR/wx.conf" ]; then
+      setsid --fork conky -c "$CONKYDIR/wx.conf" </dev/null >/dev/null 2>&1
+    fi
+    info "conky restarted"
+  fi
+}
+
+cycle() {
+  local dir="$1" c list i
+  c="$(current)"; mapfile -t list < <(themes_ordered)
+  local n=${#list[@]}
+  for i in "${!list[@]}"; do [ "${list[$i]}" = "$c" ] && break; done
+  [ "${list[$i]}" = "$c" ] || i=0
+  if [ "$dir" = next ]; then i=$(( (i + 1) % n )); else i=$(( (i - 1 + n) % n )); fi
+  cmd_set "${list[$i]}"
+}
+
+cmd_toggle() {
+  local c; c="$(current)"
+  if [ "$(sed -n 's/^ct_is_dark=//p' "$PAL/$c.env")" = "1" ]; then
+    cmd_set catppuccin-latte
+  else
+    cmd_set catppuccin-mocha
+  fi
+}
+
+case "${1:-list}" in
+  list|ls)  cmd_list ;;
+  current)  current ;;
+  set)      shift; cmd_set "${1:-}" ;;
+  next)     cycle next ;;
+  prev)     cycle prev ;;
+  toggle)   cmd_toggle ;;
+  show)     shift; cmd_show "${1:-}" ;;
+  wallpaper|wall) shift; cmd_wallpaper "${1:-}" "${2:-}" ;;
+  -h|--help|help) sed -n '2,20p' "$0" | sed 's/^# \?//' ;;
+  *) die "unknown command: $1  (try: ruxtheme --help)" ;;
+esac

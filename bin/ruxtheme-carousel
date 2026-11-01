@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+"""ruxtheme carousel - swipe through desktop themes and apply one.
+
+A GTK4 / libadwaita window built on Adw.Carousel. Each page shows the theme's
+wallpaper, its palette as swatches, and its accent. Browsing is free; nothing is
+applied until you hit Apply, because applying restarts conky and repaints the shell.
+
+  keys:  Left / Right  browse      Enter  apply      Esc  close
+"""
+import os
+import re
+import subprocess
+import sys
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Adw", "1")
+from gi.repository import Adw, Gdk, GLib, Gtk  # noqa: E402
+
+HOME = os.path.expanduser("~")
+PAL = os.path.join(HOME, ".config/ruxtheme/palettes")
+PREV = os.path.join(HOME, ".local/share/ruxtheme/previews")
+CUR = os.path.join(HOME, ".config/ruxtheme/current")
+RUXTHEME = os.path.join(HOME, ".local/bin/ruxtheme")
+
+SWATCHES = ["accent", "lavender", "blue", "sky", "teal", "green", "yellow", "peach", "red", "text"]
+
+
+def load(name):
+    pal = {}
+    with open(os.path.join(PAL, name + ".env")) as fh:
+        for line in fh:
+            m = re.match(r"^(ct_[a-z0-9_]+)='?([^'\n]*)'?$", line.strip())
+            if m:
+                pal[m.group(1)] = m.group(2)
+    return pal
+
+
+def themes():
+    names = [f[:-4] for f in os.listdir(PAL) if f.endswith(".env")]
+    return sorted(names, key=lambda n: int(load(n).get("ct_order", "99")))
+
+
+def current():
+    try:
+        return open(CUR).read().strip()
+    except OSError:
+        return ""
+
+
+CSS = b"""
+.rux-card { border-radius: 18px; }
+.rux-shot { border-radius: 14px; }
+.rux-sw { border-radius: 999px; min-width: 26px; min-height: 26px; }
+.rux-name { font-size: 20px; font-weight: 700; }
+.rux-accent { font-family: monospace; font-size: 12px; opacity: 0.75; }
+.rux-live { font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+"""
+
+
+class Win(Adw.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, title="Theme", default_width=760, default_height=610)
+        self.names = themes()
+        self.live = current()
+
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        hb = Adw.HeaderBar(css_classes=["flat"])
+        hb.set_title_widget(Adw.WindowTitle(title="ruxtheme", subtitle="swipe to browse"))
+        root.append(hb)
+
+        self.car = Adw.Carousel(spacing=16, vexpand=True)
+        self.car.connect("page-changed", self.on_page)
+        for n in self.names:
+            self.car.append(self.page(n))
+        root.append(self.car)
+
+        dots = Adw.CarouselIndicatorDots(carousel=self.car, margin_top=4)
+        root.append(dots)
+
+        bar = Gtk.Box(spacing=10, margin_top=10, margin_bottom=16,
+                      margin_start=16, margin_end=16, halign=Gtk.Align.CENTER)
+        self.prev_b = Gtk.Button(icon_name="go-previous-symbolic", css_classes=["circular"])
+        self.next_b = Gtk.Button(icon_name="go-next-symbolic", css_classes=["circular"])
+        self.apply_b = Gtk.Button(label="Apply", css_classes=["suggested-action", "pill"])
+        self.prev_b.connect("clicked", lambda *_: self.step(-1))
+        self.next_b.connect("clicked", lambda *_: self.step(1))
+        self.apply_b.connect("clicked", lambda *_: self.apply())
+        bar.append(self.prev_b)
+        bar.append(self.apply_b)
+        bar.append(self.next_b)
+        root.append(bar)
+
+        self.toast = Adw.ToastOverlay(child=root)
+        self.set_content(self.toast)
+
+        k = Gtk.EventControllerKey()
+        k.connect("key-pressed", self.on_key)
+        self.add_controller(k)
+
+        # open on the theme that's currently live
+        if self.live in self.names:
+            idx = self.names.index(self.live)
+            GLib.idle_add(lambda: (self.car.scroll_to(self.car.get_nth_page(idx), False), False)[1])
+        GLib.idle_add(self.on_page, self.car, 0)
+
+    def page(self, name):
+        p = load(name)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14,
+                      margin_start=28, margin_end=28, margin_top=8, margin_bottom=4,
+                      halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
+
+        shot = os.path.join(PREV, name + ".png")
+        if os.path.exists(shot):
+            pic = Gtk.Picture.new_for_filename(shot)
+            pic.set_size_request(600, 338)
+            pic.set_content_fit(Gtk.ContentFit.COVER)
+            pic.add_css_class("rux-shot")
+            frame = Gtk.Frame(child=pic, css_classes=["rux-card"])
+            frame.set_overflow(Gtk.Overflow.HIDDEN)
+            box.append(frame)
+
+        row = Gtk.Box(spacing=10, halign=Gtk.Align.CENTER)
+        lbl = Gtk.Label(label=p.get("ct_label", name), css_classes=["rux-name"])
+        row.append(lbl)
+        if name == self.live:
+            tag = Gtk.Label(label="ON NOW", css_classes=["rux-live"])
+            self.tint(tag, p.get("ct_accent", "#888"), p.get("ct_base", "#111"))
+            row.append(tag)
+        box.append(row)
+
+        sw = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
+        for key in SWATCHES:
+            v = p.get("ct_" + key)
+            if not v:
+                continue
+            d = Gtk.DrawingArea(css_classes=["rux-sw"])
+            d.set_size_request(26, 26)
+            d.set_tooltip_text("%s  %s" % (key, v))
+            d.set_draw_func(self.swatch, v)
+            sw.append(d)
+        box.append(sw)
+
+        box.append(Gtk.Label(label="accent: %s  %s" % (p.get("ct_accent_name", "?"),
+                                                       p.get("ct_accent", "")),
+                             css_classes=["rux-accent"]))
+        box._theme = name
+        return box
+
+    @staticmethod
+    def swatch(area, cr, w, h, colour):
+        rgba = Gdk.RGBA()
+        rgba.parse(colour)
+        cr.set_source_rgba(rgba.red, rgba.green, rgba.blue, 1.0)
+        r = min(w, h) / 2
+        cr.arc(w / 2, h / 2, r, 0, 6.2831853)
+        cr.fill()
+
+    @staticmethod
+    def tint(widget, bg, fg):
+        p = Gtk.CssProvider()
+        p.load_from_data(
+            (".rux-live{background:%s;color:%s;}" % (bg, fg)).encode())
+        widget.get_style_context().add_provider(p, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+    def idx(self):
+        return int(round(self.car.get_position()))
+
+    def step(self, d):
+        i = max(0, min(len(self.names) - 1, self.idx() + d))
+        self.car.scroll_to(self.car.get_nth_page(i), True)
+
+    def on_page(self, car, _i=None):
+        i = self.idx()
+        self.prev_b.set_sensitive(i > 0)
+        self.next_b.set_sensitive(i < len(self.names) - 1)
+        on = self.names[i] == self.live
+        self.apply_b.set_label("Current theme" if on else "Apply")
+        self.apply_b.set_sensitive(not on)
+        return False
+
+    def on_key(self, _c, keyval, *_):
+        if keyval == Gdk.KEY_Escape:
+            self.close()
+        elif keyval in (Gdk.KEY_Left, Gdk.KEY_Up):
+            self.step(-1)
+        elif keyval in (Gdk.KEY_Right, Gdk.KEY_Down):
+            self.step(1)
+        elif keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter, Gdk.KEY_space):
+            self.apply()
+        else:
+            return False
+        return True
+
+    def apply(self):
+        name = self.names[self.idx()]
+        if name == self.live:
+            return
+        self.apply_b.set_sensitive(False)
+        self.apply_b.set_label("Applying…")
+
+        def done(_pid, status, _data):
+            ok = status == 0
+            self.live = name if ok else self.live
+            self.toast.add_toast(Adw.Toast(
+                title=("Applied %s" % load(name).get("ct_label", name)) if ok
+                else "Failed to apply %s" % name, timeout=2))
+            # rebuild pages so the ON NOW badge follows
+            for pg in list(self.car):
+                self.car.remove(pg)
+            for n in self.names:
+                self.car.append(self.page(n))
+            i = self.names.index(self.live) if self.live in self.names else 0
+            GLib.idle_add(lambda: (self.car.scroll_to(self.car.get_nth_page(i), False), False)[1])
+            GLib.timeout_add(120, lambda: (self.on_page(self.car), False)[1])
+
+        pid, *_ = GLib.spawn_async(
+            [RUXTHEME, "set", name],
+            flags=GLib.SpawnFlags.DO_NOT_REAP_CHILD | GLib.SpawnFlags.SEARCH_PATH)
+        GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, done, None)
+
+
+class App(Adw.Application):
+    def __init__(self):
+        super().__init__(application_id="com.ruxchipher.ThemeCarousel")
+
+    def do_activate(self):
+        p = Gtk.CssProvider()
+        p.load_from_data(CSS)
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(), p, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        Win(self).present()
+
+
+if __name__ == "__main__":
+    sys.exit(App().run(None))

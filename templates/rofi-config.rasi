@@ -1,0 +1,66 @@
+configuration {
+    modi: "drun,run,window";
+    show-icons: true;
+    icon-theme: "${ct_icons_rux}";
+    display-drun: "  Apps";
+    display-run: "  Run";
+    display-window: "  Windows";
+    drun-display-format: "{name}";
+    font: "JetBrainsMono Nerd Font 12";
+}
+
+* {
+    base:     ${ct_base}e6;
+    surface0: ${ct_surface0};
+    surface1: ${ct_surface2};
+    text:     ${ct_text};
+    subtext:  ${ct_overlay1};
+    mauve:    ${ct_accent};
+    blue:     ${ct_sky};
+
+    background-color: transparent;
+    text-color: @text;
+}
+
+window {
+    width: 600px;
+    background-color: @base;
+    border: 2px;
+    border-color: @mauve;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+mainbox { spacing: 12px; }
+
+inputbar {
+    children: [prompt, entry];
+    background-color: @surface0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    spacing: 10px;
+}
+
+prompt { text-color: @mauve; }
+entry  { placeholder: "Search..."; placeholder-color: @subtext; }
+
+listview {
+    lines: 8;
+    columns: 1;
+    scrollbar: false;
+    spacing: 4px;
+}
+
+element {
+    padding: 8px 10px;
+    border-radius: 8px;
+    spacing: 10px;
+}
+
+element selected.normal {
+    background-color: @surface1;
+    text-color: @blue;
+}
+
+element-icon { size: 24px; }
+element-text { text-color: inherit; vertical-align: 0.5; }

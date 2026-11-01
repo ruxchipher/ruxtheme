@@ -1,0 +1,31 @@
+/* ruxchipher: ${ct_label} colours for GTK4 / libadwaita apps (Files, Settings, Text Editor...). */
+:root {
+  --accent-bg-color: ${ct_accent};
+  --accent-fg-color: ${ct_base};
+  --accent-color: ${ct_accent};
+
+  --window-bg-color: ${ct_base};
+  --window-fg-color: ${ct_text};
+  --view-bg-color: ${ct_view};
+  --view-fg-color: ${ct_text};
+  --headerbar-bg-color: ${ct_mantle};
+  --headerbar-fg-color: ${ct_text};
+  --headerbar-backdrop-color: ${ct_base};
+  --sidebar-bg-color: ${ct_mantle};
+  --sidebar-fg-color: ${ct_subtext0};
+  --sidebar-backdrop-color: ${ct_base};
+  --secondary-sidebar-bg-color: ${ct_base};
+  --secondary-sidebar-fg-color: ${ct_subtext0};
+  --card-bg-color: rgba(${ct_accent_rgb}, 0.06);
+  --card-fg-color: ${ct_text};
+  --dialog-bg-color: ${ct_view};
+  --dialog-fg-color: ${ct_text};
+  --popover-bg-color: ${ct_view};
+  --popover-fg-color: ${ct_text};
+  --thumbnail-bg-color: ${ct_surface0};
+
+  --destructive-bg-color: ${ct_red};
+  --success-bg-color: ${ct_green};
+  --warning-bg-color: ${ct_yellow};
+  --error-bg-color: ${ct_red};
+}

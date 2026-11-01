@@ -1,0 +1,18 @@
+/* ruxchipher: ${ct_label} colours for GTK3 apps (Adwaita dark). */
+@define-color theme_bg_color ${ct_base};
+@define-color theme_fg_color ${ct_text};
+@define-color theme_base_color ${ct_view};
+@define-color theme_text_color ${ct_text};
+@define-color theme_selected_bg_color ${ct_accent};
+@define-color theme_selected_fg_color ${ct_base};
+@define-color insensitive_bg_color ${ct_base};
+@define-color borders ${ct_surface1};
+@define-color accent_bg_color ${ct_accent};
+@define-color accent_color ${ct_accent};
+@define-color window_bg_color ${ct_base};
+@define-color window_fg_color ${ct_text};
+@define-color view_bg_color ${ct_view};
+@define-color headerbar_bg_color ${ct_mantle};
+@define-color sidebar_bg_color ${ct_mantle};
+@define-color popover_bg_color ${ct_view};
+@define-color card_bg_color ${ct_surface0};

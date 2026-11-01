@@ -1,0 +1,129 @@
+# ruxtheme: rendered from ~/.config/ruxtheme/templates/starship.toml
+# Theme: ${ct_label}  -  do not hand-edit, edit the template and run: ruxtheme set ${ct_name}
+#
+# ct_base is used as the foreground on accent segments on purpose: base is always the
+# extreme end of the palette (near-black on dark flavours, near-white on Latte), so the
+# powerline stays readable in both polarities.
+"$schema" = 'https://starship.rs/config-schema.json'
+
+format = """
+[░▒▓](${ct_lavender})\
+$os\
+[](bg:${ct_accent} fg:${ct_lavender})\
+$directory\
+[](fg:${ct_accent} bg:${ct_surface1})\
+$git_branch\
+$git_status\
+[](fg:${ct_surface1} bg:${ct_surface0})\
+$nodejs\
+$bun\
+$rust\
+$golang\
+$php\
+$python\
+[](fg:${ct_surface0} bg:${ct_mantle})\
+$time\
+[ ](fg:${ct_mantle})\
+\n$character"""
+
+[character]
+success_symbol = '[❯](bold ${ct_accent})'
+error_symbol = '[❯](bold ${ct_red})'
+vimcmd_symbol = '[❮](bold ${ct_green})'
+
+[directory]
+style = "fg:${ct_base} bg:${ct_accent}"
+format = "[ $path ]($style)"
+truncation_length = 3
+truncation_symbol = "…/"
+
+[directory.substitutions]
+"Documents" = "󰈙 "
+"Downloads" = " "
+"Music" = " "
+"Pictures" = " "
+"projects" = " "
+"purple-team-journey" = "󰒘 "
+
+[git_branch]
+symbol = ""
+style = "bg:${ct_surface1}"
+format = '[[ $symbol $branch ](fg:${ct_accent} bg:${ct_surface1})]($style)'
+
+[git_status]
+style = "bg:${ct_surface1}"
+format = '[[($all_status$ahead_behind )](fg:${ct_peach} bg:${ct_surface1})]($style)'
+
+[jj_bookmark]
+symbol = ""
+style = "bg:${ct_surface1}"
+format = '[[ $symbol $bookmark(@$remote)$diverged( \\(+$overflow_count others\\)) ](fg:${ct_accent} bg:${ct_surface1})]($style)'
+
+[jj_status]
+style = "bg:${ct_surface1}"
+format = '[[($all )](fg:${ct_peach} bg:${ct_surface1})]($style)'
+
+[nodejs]
+symbol = ""
+style = "bg:${ct_surface0}"
+format = '[[ $symbol ($version) ](fg:${ct_green} bg:${ct_surface0})]($style)'
+
+[bun]
+symbol = ""
+style = "bg:${ct_surface0}"
+format = '[[ $symbol ($version) ](fg:${ct_peach} bg:${ct_surface0})]($style)'
+
+[rust]
+symbol = ""
+style = "bg:${ct_surface0}"
+format = '[[ $symbol ($version) ](fg:${ct_peach} bg:${ct_surface0})]($style)'
+
+[golang]
+symbol = ""
+style = "bg:${ct_surface0}"
+format = '[[ $symbol ($version) ](fg:${ct_sky} bg:${ct_surface0})]($style)'
+
+[php]
+symbol = ""
+style = "bg:${ct_surface0}"
+format = '[[ $symbol ($version) ](fg:${ct_lavender} bg:${ct_surface0})]($style)'
+
+[python]
+symbol = ""
+style = "bg:${ct_surface0}"
+format = '[[ $symbol ($version) ](fg:${ct_yellow} bg:${ct_surface0})]($style)'
+
+[time]
+disabled = false
+time_format = "%R"
+style = "bg:${ct_mantle}"
+format = '[[  $time ](fg:${ct_subtext0} bg:${ct_mantle})]($style)'
+
+[os]
+style = "bg:${ct_lavender} fg:${ct_base}"
+format = "[ $symbol ]($style)"
+disabled = false
+
+[os.symbols]
+Windows = "󰍲"
+Ubuntu = "󰕈"
+SUSE = ""
+Raspbian = "󰐿"
+Mint = "󰣭"
+Macos = "󰀵"
+Manjaro = ""
+Linux = "󰌽"
+Gentoo = "󰣨"
+Fedora = "󰣛"
+Alpine = ""
+Amazon = ""
+Android = ""
+AOSC = ""
+Arch = "󰣇"
+Artix = "󰣇"
+EndeavourOS = ""
+CentOS = ""
+Debian = "󰣚"
+Redhat = "󱄛"
+RedHatEnterprise = "󱄛"
+Pop = ""
