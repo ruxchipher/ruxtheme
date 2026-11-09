@@ -109,7 +109,7 @@ Requires: `bash`, `gettext` (for `envsubst`), `python`, and `gsettings` for the 
 parts. The carousel needs GTK 4 and libadwaita (`python-gobject`).
 
 ```sh
-git clone https://github.com/Siddique-12300983/ruxtheme
+git clone https://github.com/ruxchipher/ruxtheme
 cd ruxtheme
 ./install.sh
 ```
@@ -186,7 +186,7 @@ hand-writing an `.env`.
   collection states no licence, so it is not mine to redistribute. `wallpapers.map.example`
   shows the mapping and the README there explains how to fetch them.
 - `lib/wallpaper.py` is derived from the procedural wallpaper generator in my
-  [dotfiles](https://github.com/Siddique-12300983/ruxchipher-dotfiles), parameterised so
+  [dotfiles](https://github.com/ruxchipher/ruxchipher-dotfiles), parameterised so
   the art follows the palette.
 
 ## Licence
